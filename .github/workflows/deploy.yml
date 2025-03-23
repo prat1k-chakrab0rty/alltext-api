@@ -1,0 +1,48 @@
+name: Deploy .NET Web API to Hostinger KVM
+
+on:
+  push:
+    branches:
+      - master  # Change if deploying from a different branch
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4  # Updated to latest version
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4  # Updated to latest version
+      with:
+        dotnet-version: '7.0.100'  # Set to .NET 7.0.100
+
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Build
+      run: dotnet build --configuration Release --no-restore
+
+    - name: Publish
+      run: dotnet publish -c Release -o ./publish
+
+    - name: Deploy via SCP
+      uses: appleboy/scp-action@v0.1.4
+      with:
+        host: ${{ secrets.HOST }}
+        username: ${{ secrets.USER }}
+        key: ${{ secrets.SSH_KEY }}
+        source: "./publish/*"
+        target: "/var/www/html/all-text-api"
+
+    - name: Restart application
+      uses: appleboy/ssh-action@v0.1.10
+      with:
+        host: ${{ secrets.HOST }}
+        username: ${{ secrets.USER }}
+        key: ${{ secrets.SSH_KEY }}
+        script: |
+          cd /var/www/html/all-text-api
+          pkill -f MyWebApi.dll || true  # Stop existing process if running
+          nohup dotnet MyWebApi.dll > output.log 2>&1 &
